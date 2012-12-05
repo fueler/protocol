@@ -6,6 +6,7 @@
 
 #include <conio.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
 #include "consoleutil.h"
 
@@ -13,8 +14,12 @@ static bool processAndQueueInput(char key);
 static void processBackspace(U32 spaces);
 static void processLineEnter();
 static void processLineEscape();
+static void processClearLine();
 static void processKey(char key);
+static void printPrompt();
+static void printPromptAndText();
 
+#define CONSOLE_PROMPT_STRING   ">"
 
 /**
  * @brief Maintains the console buffer
@@ -22,6 +27,7 @@ static void processKey(char key);
  */
 struct ConsoleBuffer
 {
+    U32 flags;
     U32 length;
     char buffer[CONSOLE_MAX_INPUT];
 
@@ -79,11 +85,30 @@ static ConsoleBuffer gConsoleBuffer;
 
 /**
  * @brief Initializes the console utility
+ * @param flags console flags
  * @return true if success, otherwise error
  */
-bool ConsoleInit()
+bool ConsoleInit(U32 flags)
 {
+    // SDL by default redirects output to console
+    // to files, this puts it back to the console
+    freopen("CON", "w", stdout);
+    freopen("CON", "w", stderr);
+
+    // Store flags
+    gConsoleBuffer.flags = flags;
+
+    // Clear the buffer
     gConsoleBuffer.clear();
+
+    // HACK to get to end of the screen
+    // It just looks better this way
+    for (int i=0; i<100; ++i) {
+        printf("\n");
+    }
+
+    // Finally print the user prompt
+    printPromptAndText();
 
     return true;
 }
@@ -137,6 +162,29 @@ int ConsoleFlushQueueToBuffer(char *buffer, U32 maxlen)
     gConsoleBuffer.clear();
 
     return bufferLen;
+}
+
+
+/**
+ * @brief Console printf, it removes the current text the user is typing
+ *        then prints this line then re-prints the user's text.
+ * @param format string format to print
+ * @param varargs arguments to format
+ */
+void ConsolePrintf(const char* format, ...)
+{
+    va_list args;
+
+    // 1. Erase current text from user
+    processClearLine();
+
+    // 2. Perform printf
+    va_start(args, format);
+    vfprintf(stdout, format, args);
+    va_end(args);
+
+    // 3. Reprint user's text
+    printPromptAndText();
 }
 
 
@@ -203,12 +251,16 @@ void processBackspace(U32 spaces)
  */
 void processLineEnter()
 {
-    // Do the same thing as a backspace
-    // but don't actually delete the char
-    // from the buffer
-    for (U32 i=0; i<gConsoleBuffer.length; ++i) {
-        printf("%c %c", 0x08, 0x08);
+    // Based on flags either clear the line or go to next line
+    // on console.
+    if (gConsoleBuffer.flags & CLEAR_LINE_ON_ENTER) {
+        processClearLine();
+    } else {
+        printf("\n");
     }
+
+    // print the prompt
+    printPrompt();
 }
 
 
@@ -224,6 +276,26 @@ void processLineEscape()
 
 
 /**
+ * @brief Clears the console line but not the buffer
+ *
+ */
+void processClearLine()
+{
+    // Do the same thing as a backspace
+    // but don't actually delete the char
+    // from the buffer
+
+    // Calcuate length of characters to remove from
+    // user buffer and prompt string
+    U32 length = gConsoleBuffer.length + strlen(CONSOLE_PROMPT_STRING);
+
+    // Do the actual character backspace from the console
+    for (U32 i=0; i<length; ++i) {
+        printf("%c %c", 0x08, 0x08);
+    }
+}
+
+/**
  * @brief Processes a normal key, if buffer has
  *        room to queue then prints it to the screen
  *        as well.
@@ -233,7 +305,31 @@ void processKey(char key)
 {
     if (gConsoleBuffer.addchar(key)) {
         printf("%c", key);
-        //printf("[%x]", key);
+    }
+    //printf("[%x]", key);
+}
+
+
+/**
+ * @brief Prints the user prompt and any text they entered
+ *
+ */
+void printPrompt()
+{
+    printf("%s", CONSOLE_PROMPT_STRING);
+}
+
+
+/**
+ * @brief Prints user prompt and any text they entered
+ *
+ */
+void printPromptAndText()
+{
+    printPrompt();
+
+    if (gConsoleBuffer.length) {
+        printf("%s", gConsoleBuffer.buffer);
     }
 }
 

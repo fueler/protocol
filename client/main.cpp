@@ -31,49 +31,50 @@ int main(int argc, char **argv)
 	bool quit;
     bool obtainingInput = false;
 
-    // SDL by default redirects output to console
-    // to files, this puts it back to the console
-    freopen("CON", "w", stdout);
-    freopen("CON", "w", stderr);
+    if (!ConsoleInit(CLEAR_LINE_ON_ENTER)) {
+        printf("ERROR: ConsoleInit failed\n");
+        exit(EXIT_FAILURE);
+    }
 
 	// Check for parameters
 	if (argc < 3) {
-		printf("ERROR: Usage: %s host port\n", argv[0]);
+		ConsolePrintf("ERROR: Usage: %s host port\n",
+                      argv[0]);
 		exit(EXIT_FAILURE);
 	}
 
 	// Initialize SDL_net
 	if (SDLNet_Init() != 0) {
-		printf("ERROR: SDLNet_Init: %s\n",
-               SDLNet_GetError());
+		ConsolePrintf("ERROR: SDLNet_Init: %s\n",
+                      SDLNet_GetError());
 		exit(EXIT_FAILURE);
 	}
-    printf("SDLNet Ready\n");
+    ConsolePrintf("SDLNet Ready\n");
 
 	// Resolve server name
 	if (!client.toIPaddress(&srvadd, argv[1], atoi(argv[2])))
 	{
-		printf("ERROR: SDLNet_ResolveHost(%s:%d): %s\n",
-               argv[1],
-               atoi(argv[2]),
-               SDLNet_GetError());
+		ConsolePrintf("ERROR: SDLNet_ResolveHost(%s:%d): %s\n",
+                      argv[1],
+                      atoi(argv[2]),
+                      SDLNet_GetError());
 		exit(EXIT_FAILURE);
 	}
 
     // Host and Port are in network order
-    printf("Server: %d.%d.%d.%d:%d\n",
-           (srvadd.host >>  0) & 0xFF,
-           (srvadd.host >>  8) & 0xFF,
-           (srvadd.host >> 16) & 0xFF,
-           (srvadd.host >> 24) & 0xFF,
-           SDLNet_Read16(&srvadd.port));
+    ConsolePrintf("Server: %d.%d.%d.%d:%d\n",
+                  (srvadd.host >>  0) & 0xFF,
+                  (srvadd.host >>  8) & 0xFF,
+                  (srvadd.host >> 16) & 0xFF,
+                  (srvadd.host >> 24) & 0xFF,
+                  SDLNet_Read16(&srvadd.port));
 
     // Initialize client
     if (!client.init(USE_RANDOM_PORT, UDP_MAX_PACKET_SIZE, &srvadd)) {
-        printf("ERROR: client.init(): failed\n");
+        ConsolePrintf("ERROR: client.init(): failed\n");
         exit(EXIT_FAILURE);
     }
-    printf("Client Ready\n");
+    ConsolePrintf("Client Ready\n");
 
 	// Main loop
 	quit = false;
@@ -95,7 +96,7 @@ int main(int argc, char **argv)
         }
 
         // get network input
-        if (!obtainingInput) {
+        if (!quit) {
             ClientPacket *pkt;
 
             pkt = client.allocPacket();
@@ -112,6 +113,8 @@ int main(int argc, char **argv)
             }
         } // end network
 	}
+
+    ConsolePrintf("Quiting...\n");
 
     // cleanup
     client.shutdown();
