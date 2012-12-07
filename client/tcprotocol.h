@@ -11,12 +11,23 @@
 #include "clientsocket.h"
 
 enum {
+    TYPE_ACK = 1, // No ACKs right now
     TYPE_JOIN,
     TYPE_LEAVE,
     TYPE_TEXT
 };
 
-struct MessengerHdr
+enum {
+    TO_ADDRESS_SERVER = 0,
+    TO_ADDRESS_BROADCAST = 1
+};
+
+enum {
+    TC_MAX_NAME_SIZE = 8,
+    TC_MAX_TEXT_SIZE = 128
+};
+
+struct MsgrHdr
 {
     U32 to;
     U32 from;
@@ -25,7 +36,35 @@ struct MessengerHdr
     U32 length;
 };
 
-bool HandleUserInput();
+struct MsgrJoin
+{
+    char name[TC_MAX_NAME_SIZE];
+};
+
+struct MsgrLeave
+{
+    char name[TC_MAX_NAME_SIZE];
+};
+
+struct MsgrText
+{
+    char name[TC_MAX_NAME_SIZE];
+    char data[TC_MAX_TEXT_SIZE];
+};
+
+struct MessengerPacket
+{
+    MsgrHdr hdr;
+    union {
+        MsgrJoin join;
+        MsgrLeave leave;
+        MsgrText text;
+    };
+};
+
+bool InitMessengerProtocol();
+void ShutdownMessengerProtocol();
+bool HandleUserInput(ClientSocket *client);
 bool HandleServerData(ClientSocket *client, ClientPacket *pkt);
 
 #endif

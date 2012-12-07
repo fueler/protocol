@@ -6,6 +6,12 @@
 #include <stdio.h>
 #include "util.h"
 
+#define DEBUG_USE_CONSOLE_UTIL
+#ifdef DEBUG_USE_CONSOLE_UTIL
+#include "consoleutil.h"
+#define printf ConsolePrintf
+#endif
+
 /**
  * @brief Dumps memory
  * @param bufPtr pointer to buffer to dump

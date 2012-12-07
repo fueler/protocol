@@ -76,6 +76,13 @@ int main(int argc, char **argv)
     }
     ConsolePrintf("Client Ready\n");
 
+    // Initialize the Messenger protocol
+    if (!InitMessengerProtocol()) {
+        ConsolePrintf("ERROR: InitMessengerProtocol() failed\n");
+        exit(EXIT_FAILURE);
+    }
+    ConsolePrintf("Messenger Protocol Ready\n");
+
 	// Main loop
 	quit = false;
 	while (!quit) {
@@ -86,7 +93,7 @@ int main(int argc, char **argv)
         } else {
             if (obtainingInput) {
                 // user finished typing something
-                if (!HandleUserInput()) {
+                if (!HandleUserInput(&client)) {
                     // time to quit
                     quit = true;
                 }
@@ -117,6 +124,7 @@ int main(int argc, char **argv)
     ConsolePrintf("Quiting...\n");
 
     // cleanup
+    ShutdownMessengerProtocol();
     client.shutdown();
 	SDLNet_Quit();
 

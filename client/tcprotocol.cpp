@@ -16,10 +16,29 @@
 
 
 /**
+ * @brief Initializes the Messenger protocol
+ * @return true if success, otherwise error
+ */
+bool InitMessengerProtocol()
+{
+    return true;
+}
+
+
+/**
+ * @brief Cleans up any resources
+ *
+ */
+void ShutdownMessengerProtocol()
+{
+}
+
+
+/**
  * @brief This function handles input from the user
  * @return true if keep going, otherwise exit the program
  */
-bool HandleUserInput()
+bool HandleUserInput(ClientSocket *client)
 {
     char buffer[CONSOLE_MAX_INPUT];
     int length;
@@ -62,20 +81,19 @@ bool HandleUserInput()
 bool HandleServerData(ClientSocket *client, ClientPacket *pkt)
 {
 #ifdef DEBUG_SHOW_RAW_PACKET
-    // Debug
-    printf("UDP Packet incoming\n");
-    printf("\tChannel: %d\n", pkt->channel);
-    printf("\tLength:  %d\n", pkt->len);
-    printf("\tMaxlen:  %d\n", pkt->maxlen);
-    printf("\tStatus:  %d\n", pkt->status);
+    ConsolePrintf("UDP Packet incoming\n");
+    ConsolePrintf("\tChannel: %d\n", pkt->channel);
+    ConsolePrintf("\tLength:  %d\n", pkt->len);
+    ConsolePrintf("\tMaxlen:  %d\n", pkt->maxlen);
+    ConsolePrintf("\tStatus:  %d\n", pkt->status);
 
     // Host and Port are in network order
-    printf("\tAddress: %d.%d.%d.%d:%d\n",
-           (pkt->address.host >>  0) & 0xFF,
-           (pkt->address.host >>  8) & 0xFF,
-           (pkt->address.host >> 16) & 0xFF,
-           (pkt->address.host >> 24) & 0xFF,
-           SDLNet_Read16(&pkt->address.port));
+    ConsolePrintf("\tAddress: %d.%d.%d.%d:%d\n",
+                  (pkt->address.host >>  0) & 0xFF,
+                  (pkt->address.host >>  8) & 0xFF,
+                  (pkt->address.host >> 16) & 0xFF,
+                  (pkt->address.host >> 24) & 0xFF,
+                  pkt->address.port);
     debugDumpMemoryContents(pkt->data, pkt->len);
 #endif
 
