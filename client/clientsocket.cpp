@@ -4,7 +4,14 @@
  */
 
 #include "clientsocket.h"
+#include "consoleutil.h"
+#include "util.h"
 
+// By commenting out these defines it turns off
+// debugs. Likewise, uncommenting them out will
+// turn them on.
+//#define DEBUG_SHOW_RAW_RX_PACKET
+//#define DEBUG_SHOW_RAW_TX_PACKET
 
 /**
  * @brief Initializes client socket
@@ -32,9 +39,9 @@ bool ClientSocket::init(U32 localport, U32 bufferSize, IPaddress *server)
     mClientSocket = SDLNet_UDP_Open(localport);
     if (mClientSocket == 0) {
         retval = false;
-        printf("ERROR: SDLNet_UDP_Open(%d): %s\n",
-               localport,
-               SDLNet_GetError());
+        ConsolePrintf("ERROR: SDLNet_UDP_Open(%d): %s\n",
+                      localport,
+                      SDLNet_GetError());
     }
 
     return retval;
@@ -64,9 +71,9 @@ ClientPacket* ClientSocket::allocPacket()
 
     pkt = SDLNet_AllocPacket(mBufferSize);
     if (pkt == NULL) {
-        printf("ERROR: SDLNet_AllocPacket(%d): %s\n",
-               mBufferSize,
-               SDLNet_GetError());
+        ConsolePrintf("ERROR: SDLNet_AllocPacket(%d): %s\n",
+                      mBufferSize,
+                      SDLNet_GetError());
     }
 
     return pkt;
@@ -103,10 +110,26 @@ bool ClientSocket::receiveData(ClientPacket *pkt)
     numPkts = SDLNet_UDP_Recv(mClientSocket, pkt);
     if (numPkts > 0) {
         // packets received
+#ifdef DEBUG_SHOW_RAW_RX_PACKET
+        ConsolePrintf("<---- UDP Packet Received\n");
+        ConsolePrintf("\tChannel: %d\n", pkt->channel);
+        ConsolePrintf("\tLength:  %d\n", pkt->len);
+        ConsolePrintf("\tMaxlen:  %d\n", pkt->maxlen);
+        ConsolePrintf("\tStatus:  %d\n", pkt->status);
+
+        // Host and Port are in network order
+        ConsolePrintf("\tAddress: %d.%d.%d.%d:%d\n",
+                      (pkt->address.host >>  0) & 0xFF,
+                      (pkt->address.host >>  8) & 0xFF,
+                      (pkt->address.host >> 16) & 0xFF,
+                      (pkt->address.host >> 24) & 0xFF,
+                      pkt->address.port);
+        debugDumpMemoryContents(pkt->data, pkt->len);
+#endif
         return true;
     } else if (numPkts < 0) {
-        printf("ERROR: SDLNet_UDP_Recv(): %s\n",
-               SDLNet_GetError());
+        ConsolePrintf("ERROR: SDLNet_UDP_Recv(): %s\n",
+                      SDLNet_GetError());
         return false;
     } else {
         // no data
@@ -131,6 +154,23 @@ bool ClientSocket::transmitData(ClientPacket *pkt)
 
     // store server's IP address/port in pkt header
     pkt->address = mServerIPaddress;
+
+#ifdef DEBUG_SHOW_RAW_TX_PACKET
+    ConsolePrintf("----> UDP Packet Transmitted\n");
+    ConsolePrintf("\tChannel: %d\n", pkt->channel);
+    ConsolePrintf("\tLength:  %d\n", pkt->len);
+    ConsolePrintf("\tMaxlen:  %d\n", pkt->maxlen);
+    ConsolePrintf("\tStatus:  %d\n", pkt->status);
+
+    // Host and Port are in network order
+    ConsolePrintf("\tAddress: %d.%d.%d.%d:%d\n",
+                  (pkt->address.host >>  0) & 0xFF,
+                  (pkt->address.host >>  8) & 0xFF,
+                  (pkt->address.host >> 16) & 0xFF,
+                  (pkt->address.host >> 24) & 0xFF,
+                  pkt->address.port);
+    debugDumpMemoryContents(pkt->data, pkt->len);
+#endif
 
     // Attempt to transmit data
     numRecepients = SDLNet_UDP_Send(mClientSocket, -1, pkt);
@@ -161,10 +201,10 @@ bool ClientSocket::toIPaddress(IPaddress *address, char *name, int port)
     // perform the lookup
     int hostResolved = SDLNet_ResolveHost(address, name, port);
     if (hostResolved == -1) {
-        printf("ERROR: SDLNet_ResolveHost(%s:%d): %s\n",
-               name,
-               port,
-               SDLNet_GetError());
+        ConsolePrintf("ERROR: SDLNet_ResolveHost(%s:%d): %s\n",
+                      name,
+                      port,
+                      SDLNet_GetError());
 
         return false;
     } else {
