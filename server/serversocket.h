@@ -15,11 +15,13 @@ struct ClientConn
 {
     bool used;
     IPaddress address;
+    void *appData;
 
     void clear() {
         used = false;
         address.host = 0;
         address.port = 0;
+        appData = NULL;
     }
 };
 
@@ -33,7 +35,7 @@ struct ServerSocket
     UDPsocket mServerSocket;
 
     ClientConn *mClientList;
-    unsigned int mClientCount;
+    U32 mClientCount;
 
     bool init(U32 port, U32 bufferSize, U32 maxClients);
     void shutdown();
@@ -41,14 +43,19 @@ struct ServerSocket
     bool receiveData(ServerPacket *pkt);
     bool transmitData(int toHandle, ServerPacket *pkt);
 
-    IPaddress* handleToPeerIPaddress(int handle);
+    IPaddress* handleToPeerIPaddress(U32 handle);
     int peerIPaddressToHandle(IPaddress *address);
 
     ServerPacket* allocPacket();
     void freePacket(ServerPacket *pkt);
 
     int allocClient(IPaddress *address);
-    void freeClient(int handle);
+    void freeClient(U32 handle);
+
+    void setPrivateData(U32 handle, void *ptr);
+    void* getPrivateData(U32 handle);
+
+    IPaddress* getLocalServerIP();
 };
 
 #endif

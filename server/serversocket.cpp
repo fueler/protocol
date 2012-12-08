@@ -4,7 +4,14 @@
  */
 
 #include "serversocket.h"
+#include "consoleutil.h"
 #include "util.h"
+
+// By commenting out these defines it turns off
+// debugs. Likewise, uncommenting them out will
+// turn them on.
+//#define DEBUG_SHOW_RAW_RX_PACKET
+//#define DEBUG_SHOW_RAW_TX_PACKET
 
 
 bool ServerSocket::init(U32 port, U32 bufferSize, U32 maxClients)
@@ -21,24 +28,24 @@ bool ServerSocket::init(U32 port, U32 bufferSize, U32 maxClients)
     mClientList = new ClientConn[mMaxClients];
     if (mClientList == NULL) {
         retval = false;
-        printf("ERROR: Unable to allocate client list %d\n",
-               mMaxClients);
+        ConsolePrintf("ERROR: Unable to allocate client list %d\n",
+                      mMaxClients);
     } else {
         // init client list
-        for (U32 i=0; i<mMaxClients; ++mMaxClients) {
+        for (U32 i=0; i<mMaxClients; ++i) {
             mClientList[i].clear();
         }
     }
 
-    // Is this needed for UDP?
+    // Get the server's IP address
     if (retval) {
         int hostResolved = SDLNet_ResolveHost(&mServerIP, NULL, mPort);
 
         if (hostResolved == -1) {
             retval = false;
-            printf("ERROR: SDLNet_ResolveHost(%d): %s\n",
-                   mPort,
-                   SDLNet_GetError());
+            ConsolePrintf("ERROR: SDLNet_ResolveHost(%d): %s\n",
+                          mPort,
+                          SDLNet_GetError());
         }
     }
 
@@ -46,9 +53,9 @@ bool ServerSocket::init(U32 port, U32 bufferSize, U32 maxClients)
         mServerSocket = SDLNet_UDP_Open(mPort);
         if (mServerSocket == 0) {
             retval = false;
-            printf("ERROR: SDLNet_UDP_Open(%d): %s\n",
-                   mPort,
-                   SDLNet_GetError());
+            ConsolePrintf("ERROR: SDLNet_UDP_Open(%d): %s\n",
+                          mPort,
+                          SDLNet_GetError());
         }
     }
 
@@ -72,9 +79,9 @@ ServerPacket* ServerSocket::allocPacket()
 
     pkt = SDLNet_AllocPacket(mBufferSize);
     if (pkt == NULL) {
-        printf("ERROR: SDLNet_AllocPacket(%d): %s\n",
-               mBufferSize,
-               SDLNet_GetError());
+        ConsolePrintf("ERROR: SDLNet_AllocPacket(%d): %s\n",
+                      mBufferSize,
+                      SDLNet_GetError());
     }
 
     return pkt;
@@ -115,15 +122,42 @@ int ServerSocket::allocClient(IPaddress *address)
     return clientIndex;
 }
 
-void ServerSocket::freeClient(int handle)
+void ServerSocket::freeClient(U32 handle)
 {
-    if ((handle < 0) || (handle >= (int)mMaxClients)) {
+    if (handle >= mMaxClients) {
         // invalid handle
         return;
     }
+
     if (mClientList[handle].used) {
         mClientList[handle].clear();
         --mClientCount;
+    }
+}
+
+void ServerSocket::setPrivateData(U32 handle, void *ptr)
+{
+    if (handle >= mMaxClients) {
+        // invalid handle
+        return;
+    } else if (mClientList[handle].used) {
+        mClientList[handle].appData = ptr;
+    } else {
+        // invalid handle
+        return;
+    }
+}
+
+void* ServerSocket::getPrivateData(U32 handle)
+{
+    if (handle >= mMaxClients) {
+        // invalid handle
+        return NULL;
+    } else if (mClientList[handle].used) {
+        return mClientList[handle].appData;
+    } else {
+        // invalid handle
+        return NULL;
     }
 }
 
@@ -137,10 +171,26 @@ bool ServerSocket::receiveData(ServerPacket *pkt)
 
     numPkts = SDLNet_UDP_Recv(mServerSocket, pkt);
     if (numPkts > 0) {
+#ifdef DEBUG_SHOW_RAW_RX_PACKET
+        ConsolePrintf("<---- UDP Packet Received\n");
+        ConsolePrintf("\tChannel: %d\n", pkt->channel);
+        ConsolePrintf("\tLength:  %d\n", pkt->len);
+        ConsolePrintf("\tMaxlen:  %d\n", pkt->maxlen);
+        ConsolePrintf("\tStatus:  %d\n", pkt->status);
+
+        // Host and Port are in network order
+        ConsolePrintf("\tAddress: %d.%d.%d.%d:%d\n",
+                      (pkt->address.host >>  0) & 0xFF,
+                      (pkt->address.host >>  8) & 0xFF,
+                      (pkt->address.host >> 16) & 0xFF,
+                      (pkt->address.host >> 24) & 0xFF,
+                      pkt->address.port);
+        debugDumpMemoryContents(pkt->data, pkt->len);
+#endif
         return true;
     } else if (numPkts < 0) {
-        printf("ERROR: SDLNet_UDP_Recv(): %s\n",
-               SDLNet_GetError());
+        ConsolePrintf("ERROR: SDLNet_UDP_Recv(): %s\n",
+                      SDLNet_GetError());
         return false;
     } else {
         // no data
@@ -161,6 +211,23 @@ bool ServerSocket::transmitData(int toHandle, ServerPacket *pkt)
     if (toAddress) {
         pkt->address = *toAddress;
 
+#ifdef DEBUG_SHOW_RAW_TX_PACKET
+        ConsolePrintf("----> UDP Packet Transmitted\n");
+        ConsolePrintf("\tChannel: %d\n", pkt->channel);
+        ConsolePrintf("\tLength:  %d\n", pkt->len);
+        ConsolePrintf("\tMaxlen:  %d\n", pkt->maxlen);
+        ConsolePrintf("\tStatus:  %d\n", pkt->status);
+
+        // Host and Port are in network order
+        ConsolePrintf("\tAddress: %d.%d.%d.%d:%d\n",
+                      (pkt->address.host >>  0) & 0xFF,
+                      (pkt->address.host >>  8) & 0xFF,
+                      (pkt->address.host >> 16) & 0xFF,
+                      (pkt->address.host >> 24) & 0xFF,
+                      pkt->address.port);
+        debugDumpMemoryContents(pkt->data, pkt->len);
+#endif
+
         numRecepients = SDLNet_UDP_Send(mServerSocket, -1, pkt);
         if (numRecepients == 0) {
             // unable to send
@@ -175,9 +242,9 @@ bool ServerSocket::transmitData(int toHandle, ServerPacket *pkt)
     }
 }
 
-IPaddress* ServerSocket::handleToPeerIPaddress(int handle)
+IPaddress* ServerSocket::handleToPeerIPaddress(U32 handle)
 {
-    if ((handle < 0) || (handle >= (int)mMaxClients)) {
+    if (handle >= mMaxClients) {
         // invalid handle
         return NULL;
     }
@@ -202,3 +269,7 @@ int ServerSocket::peerIPaddressToHandle(IPaddress *address)
     return handle;
 }
 
+IPaddress* ServerSocket::getLocalServerIP()
+{
+    return &mServerIP;
+}
